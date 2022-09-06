@@ -1,0 +1,7 @@
+{
+  "exp_name": "",
+  "exp_path": "",
+  "about_experiment": "Here must be the experiment description!",
+
+  "pretrain_data_path": "/Users/cristea/Downloads/Task09_Spleen/imagesTr"
+}
