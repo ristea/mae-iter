@@ -3,5 +3,8 @@
   "exp_path": "",
   "about_experiment": "Here must be the experiment description!",
 
-  "pretrain_data_path": "/Users/cristea/Downloads/Task09_Spleen/imagesTr"
+  "pretrain_data_path": "/home/radu/Downloads/med3d_prototype",
+
+  "dataset-pretrain": ["brats", "hepaticvessel", "hippocampus", "lits", "pancreas", "prostate", "spleen"],
+  "dataset-pretrain-all": ["brats", "heart", "hepaticvessel", "hippocampus", "lits", "pancreas", "prostate", "spleen"]
 }
