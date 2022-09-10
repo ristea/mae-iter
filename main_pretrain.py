@@ -33,8 +33,8 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 import models_mae
 
-# from engine_pretrain import train_one_epoch
-from engine_pretrain_local import train_one_epoch
+from engine_pretrain import train_one_epoch
+# from engine_pretrain_local import train_one_epoch
 
 
 def get_args_parser():
@@ -111,6 +111,7 @@ def get_args_parser():
 
 
 def main(args):
+    config = json.load(open(args.config_path))
     misc.init_distributed_mode(args)
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
@@ -158,7 +159,8 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size).float()
+    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size,
+                                            in_chans=config['depth']).float()
 
     model.to(device)
 

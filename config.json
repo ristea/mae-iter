@@ -5,6 +5,7 @@
 
   "pretrain_data_path": "/home/radu/Downloads/med3d_prototype",
 
+  "depth": 5,
   "dataset-pretrain": ["brats", "hepaticvessel", "hippocampus", "lits", "pancreas", "prostate", "spleen"],
   "dataset-pretrain-all": ["brats", "heart", "hepaticvessel", "hippocampus", "lits", "pancreas", "prostate", "spleen"]
 }

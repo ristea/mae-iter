@@ -43,10 +43,10 @@ class MedicalDataset(torch.utils.data.Dataset):
             else:
                 length = nib.load(path).get_fdata().shape[-1]
 
-            for i in range(0, length):
+            for i in range(0, length - self.config['depth']):
                 prods_path.append({
                     "data": path,
-                    "slice": i,
+                    "slice": list(range(i, i + self.config['depth'])),
                     "type": type,
                     "organ": name
                 })
@@ -86,7 +86,7 @@ class MedicalDataset(torch.utils.data.Dataset):
             image = image.astype(np.float32)
 
         image = cv2.resize(image, dsize=(256, 256), interpolation=cv2.INTER_CUBIC)
-        image = np.expand_dims(image, 0)
+        image = np.moveaxis(image, -1, 0)
 
         if self.transform:
             image = self.transform(torch.from_numpy(image))
