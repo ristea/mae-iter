@@ -58,9 +58,11 @@ class Mlp(nn.Module):
 
 class Attention(nn.Module):
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.,
-                 mask_kq_at_training=False):
+                 mask_kq_at_training=[False, False]):
         super().__init__()
-        self.mask_kq_at_training = mask_kq_at_training
+        self.mask_k_at_training = mask_kq_at_training[0]
+        self.mask_q_at_training = mask_kq_at_training[1]
+
         self.dim = dim
         self.num_heads = num_heads
         self.head_dim = dim // num_heads
@@ -78,8 +80,10 @@ class Attention(nn.Module):
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]   # make torchscript happy (cannot use tensor as tuple)
 
-        if self.mask_kq_at_training:
+        if self.mask_q_at_training:
             q = self.mask_kq(q, mask_ratio)
+        if self.mask_k_at_training:
+            k = self.mask_kq(k, mask_ratio)
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn.softmax(dim=-1)
@@ -91,18 +95,18 @@ class Attention(nn.Module):
         return x
 
     def mask_kq(self, x, mask_ratio):
-        mask_head = int(self.head_dim * mask_ratio)
-        diag = torch.cat((torch.zeros(mask_head), torch.ones(self.head_dim - mask_head)))
+        mask_head = int(x.shape[2] * mask_ratio)
+        diag = torch.cat((torch.zeros(mask_head), torch.ones(x.shape[2] - mask_head)))
         diag = diag[torch.randperm(diag.nelement())]
         diag = torch.diag(diag).to(x.device)
 
-        return torch.matmul(x, diag)
+        return torch.matmul(diag, x)
 
 
 class Block(nn.Module):
 
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, mask_kq_at_training=False):
+                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, mask_kq_at_training=[False, False]):
         super().__init__()
         self.norm1 = norm_layer(dim)
         self.attn = Attention(

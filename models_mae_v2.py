@@ -40,7 +40,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         self.blocks = nn.ModuleList([
             Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, qk_scale=None, norm_layer=norm_layer,
-                  mask_kq_at_training=True)
+                  mask_kq_at_training=[True, True])
             for i in range(depth)])
         self.norm = norm_layer(embed_dim)
         # --------------------------------------------------------------------------
@@ -245,8 +245,8 @@ mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blo
 mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
 
-model = mae_vit_base_patch16()
-
-model(torch.zeros((3, 3, 112, 112)))
-model(torch.zeros((3, 3, 112, 112)), mask_ratio=0.5)
-model(torch.zeros((3, 3, 112, 112)), mask_ratio=0.9)
+# model = mae_vit_base_patch16()
+#
+# model(torch.zeros((3, 3, 112, 112)), mask_ratio=0.3)
+# model(torch.zeros((3, 3, 112, 112)), mask_ratio=0.5)
+# model(torch.zeros((3, 3, 112, 112)), mask_ratio=0.9)
