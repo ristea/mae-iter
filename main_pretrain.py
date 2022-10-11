@@ -33,6 +33,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 # Import models_mae for Vanilla and models_mae_v2 for new masking
 import models_mae_v2 as models_mae
 
+# from engine_pretrain_local import train_one_epoch
 from engine_pretrain import train_one_epoch
 
 
@@ -94,6 +95,7 @@ def get_args_parser():
     parser.set_defaults(pin_mem=True)
 
     # distributed training parameters
+    parser.add_argument('--distributed', default=True, type=bool)
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
     parser.add_argument('--local_rank', default=-1, type=int)
@@ -117,7 +119,7 @@ def main(args):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    cudnn.benchmark = True
+    cudnn.benchmark = args.device == 'cuda'
 
     # simple augmentation
     transform_train = transforms.Compose([
@@ -128,7 +130,7 @@ def main(args):
     dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     print(dataset_train)
 
-    if True:  # args.distributed:
+    if args.distributed:  # args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
         sampler_train = torch.utils.data.DistributedSampler(
@@ -138,7 +140,7 @@ def main(args):
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
 
-    if global_rank == 0 and args.log_dir is not None:
+    if args.distributed and global_rank == 0 and args.log_dir is not None:
         os.makedirs(args.log_dir, exist_ok=True)
         log_writer = SummaryWriter(log_dir=args.log_dir)
     else:
