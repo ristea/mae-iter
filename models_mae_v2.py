@@ -26,7 +26,8 @@ class MaskedAutoencoderViT(nn.Module):
     def __init__(self, img_size=112, patch_size=16, in_chans=3,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, mask_kq_at_training=[False, False]):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, mask_kq_at_training=[False, False],
+                 mask_ratio_skip=0.0):
         super().__init__()
 
         self.in_channels = in_chans
@@ -155,7 +156,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x_masked, mask, ids_restore
 
-    def forward_encoder(self, x, mask_ratio):
+    def forward_encoder(self, x, mask_ratio, mask_ratio_skip):
         # embed patches
         x = self.patch_embed(x)
 
@@ -169,7 +170,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         # apply Transformer blocks
         for blk in self.blocks:
-            x = blk(x, mask_ratio)
+            x = blk(x, mask_ratio, mask_ratio_skip)
         x = self.norm(x)
 
         return x
@@ -212,8 +213,8 @@ class MaskedAutoencoderViT(nn.Module):
         loss = loss.mean()
         return loss
 
-    def forward(self, imgs, mask_ratio=0.):
-        latent = self.forward_encoder(imgs, mask_ratio)
+    def forward(self, imgs, mask_ratio=0., mask_ratio_skip=0.):
+        latent = self.forward_encoder(imgs, mask_ratio, mask_ratio_skip)
         pred = self.forward_decoder(latent)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred)
         return loss, pred, pred
@@ -250,8 +251,8 @@ mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blo
 mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
 
-model = mae_vit_base_patch16(mask_kq_at_training=[True, True])
+# model = mae_vit_base_patch16(mask_kq_at_training=[True, True])
 
-model(torch.zeros((3, 3, 112, 112)), mask_ratio=0.3)
+# model(torch.zeros((3, 3, 112, 112)), mask_ratio=0.3)
 # model(torch.zeros((3, 3, 112, 112)), mask_ratio=0.5)
 # model(torch.zeros((3, 3, 112, 112)), mask_ratio=0.9)

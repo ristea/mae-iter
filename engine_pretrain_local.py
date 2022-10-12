@@ -45,7 +45,7 @@ def train_one_epoch(model: torch.nn.Module,
 
         samples = samples.to(device, non_blocking=True)
 
-        loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
+        loss, _, _ = model(samples, mask_ratio=args.mask_ratio, mask_ratio_skip=args.mask_ratio_skip)
         loss_value = loss.item()
 
         if not math.isfinite(loss_value):
