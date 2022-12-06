@@ -19,10 +19,61 @@ from vit_local import PatchEmbed, Block
 from util.pos_embed import get_2d_sincos_pos_embed
 
 
+class MaskingNet(nn.Module):
+    """ Masking network """
+    def __init__(self, num_tokens, embed_dim=256, depth=5, num_heads=4, mlp_ratio=4., norm_layer=nn.LayerNorm):
+        super().__init__()
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.pos_embed = nn.Parameter(torch.zeros(1, 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
+
+        self.blocks = nn.ModuleList([
+            Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, qk_scale=None, norm_layer=norm_layer)
+            for i in range(depth)])
+
+        self.mlp_head = nn.Sequential(
+            norm_layer(embed_dim),
+            nn.Linear(embed_dim, num_tokens),
+            nn.Sigmoid()
+        )
+
+        self.initialize_weights()
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            # we use xavier_uniform following official JAX ViT:
+            torch.nn.init.xavier_uniform_(m.weight)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+
+    def initialize_weights(self):
+        # initialization
+        # initialize (and freeze) pos_embed by sin-cos embedding
+        pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], 1, cls_token=True)[:self.pos_embed.shape[1]]
+        self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
+        torch.nn.init.normal_(self.cls_token, std=.02)
+        # initialize nn.Linear and nn.LayerNorm
+        self.apply(self._init_weights)
+
+    def forward(self, x):
+        cls_token = self.cls_token + self.pos_embed
+        cls_tokens = cls_token.expand(x.shape[0], -1, -1)
+        x = torch.cat((cls_tokens, x), dim=1)
+
+        for blk in self.blocks:
+            x = blk(x)
+
+        x = self.mlp_head(x[:, 0])
+        return x
+
+
 class MaskedAutoencoderViT(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
-    def __init__(self, img_size=512, patch_size=16, in_chans=1,
+    def __init__(self, img_size=512, patch_size=16, in_chans=3,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
@@ -40,6 +91,11 @@ class MaskedAutoencoderViT(nn.Module):
             Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, qk_scale=None, norm_layer=norm_layer)
             for i in range(depth)])
         self.norm = norm_layer(embed_dim)
+        # --------------------------------------------------------------------------
+
+        # --------------------------------------------------------------------------
+        # MAE masking net specifics
+        self.masking_net = MaskingNet(num_tokens=num_patches, embed_dim=embed_dim)
         # --------------------------------------------------------------------------
 
         # --------------------------------------------------------------------------
@@ -129,10 +185,11 @@ class MaskedAutoencoderViT(nn.Module):
         N, L, D = x.shape  # batch, length, dim
         len_keep = int(L * (1 - mask_ratio))
         
-        noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
-        
+        # mask_embedding = torch.rand(N, L, device=x.device)  # noise in [0, 1]
+        mask_embedding = self.masking_net(x)
+
         # sort noise for each sample
-        ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
+        ids_shuffle = torch.argsort(mask_embedding, dim=1, descending=True)  # descend: small is remove, large is keep
         ids_restore = torch.argsort(ids_shuffle, dim=1)
 
         # keep the first subset
@@ -220,6 +277,14 @@ class MaskedAutoencoderViT(nn.Module):
         return loss, pred, mask
 
 
+def mae_vit_base_patch8_dec512d8b(**kwargs):
+    model = MaskedAutoencoderViT(
+        patch_size=8, embed_dim=768, depth=12, num_heads=12,
+        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
 def mae_vit_base_patch16_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(
         patch_size=16, embed_dim=768, depth=12, num_heads=12,
@@ -244,9 +309,11 @@ def mae_vit_huge_patch14_dec512d8b(**kwargs):
     return model
 
 
-# model = mae_vit_base_patch16_dec512d8b()
-# a = model(torch.ones(3, 3, 224, 224))
+# model = mae_vit_base_patch8_dec512d8b(img_size=64)
+# a = model(torch.ones(3, 3, 64, 64))
+
 # set recommended archs
+mae_vit_base_patch8 = mae_vit_base_patch8_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks

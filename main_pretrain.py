@@ -30,11 +30,10 @@ import timm.optim.optim_factory as optim_factory
 import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
-# Import models_mae for Vanilla and models_mae_v2 for new masking
-import models_mae_v2 as models_mae
+import models_mae as models_mae
 
-# from engine_pretrain_local import train_one_epoch
-from engine_pretrain import train_one_epoch
+from engine_pretrain_local import train_one_epoch
+# from engine_pretrain import train_one_epoch
 
 
 def get_args_parser():
@@ -42,19 +41,15 @@ def get_args_parser():
     parser.add_argument('--batch_size', default=300, type=int,
                         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
     parser.add_argument('--epochs', default=800, type=int)
-    parser.add_argument('--accum_iter', default=1, type=int,
-                        help='Accumulate gradient iterations (for increasing the effective batch size under memory constraints)')
+    parser.add_argument('--accum_iter', default=1, type=int, help='Accumulate gradient iterations')
 
     # Masking V2 parameters
-    parser.add_argument('--mask_k', default=False, type=bool)
-    parser.add_argument('--mask_q', default=False, type=bool)
-    parser.add_argument('--mask_ratio', default=0.0, type=float)
-    parser.add_argument('--mask_ratio_skip', default=0.2, type=float)
+    parser.add_argument('--mask_ratio', default=0.75, type=float)
 
     # Model parameters
-    parser.add_argument('--model', default='mae_vit_base_patch16_dec512d8b', type=str, metavar='MODEL',
+    parser.add_argument('--model', default='mae_vit_base_patch8', type=str, metavar='MODEL',
                         help='Name of model to train')
-    parser.add_argument('--input_size', default=112, type=int, help='images input size')
+    parser.add_argument('--input_size', default=64, type=int, help='images input size')
     parser.add_argument('--norm_pix_loss', action='store_true',
                         help='Use (per-patch) normalized pixels as targets for computing loss')
     parser.set_defaults(norm_pix_loss=False)
@@ -84,7 +79,7 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=0, type=int)
-    parser.add_argument('--save_ckpt_freq', default=20, type=int)
+    parser.add_argument('--save_ckpt_freq', default=10, type=int)
     parser.add_argument('--resume', default='',
                         help='resume from checkpoint')
 
@@ -157,8 +152,7 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size,
-                                            mask_kq_at_training=[args.mask_k, args.mask_q]).float()
+    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size).float()
     model.to(device)
 
     model_without_ddp = model

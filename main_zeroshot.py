@@ -18,7 +18,6 @@ from util.datasets import build_dataset_zero_shot
 from util.pos_embed import interpolate_pos_embed
 
 import models_vit
-
 from engine_zeroshot import compute_zeroshot_acc
 
 
@@ -29,9 +28,10 @@ def get_args_parser():
     parser.add_argument('--knn_size', default=5, type=int, help='Neighbours size for KNN')
 
     # Model parameters
-    parser.add_argument('--model', default='vit_base_patch16', type=str, metavar='MODEL', help='Name of model to train')
+    parser.add_argument('--model', default='vit_base_patch8', type=str, metavar='MODEL',
+                        help='Name of model to train')
 
-    parser.add_argument('--input_size', default=224, type=int, help='images input size')
+    parser.add_argument('--input_size', default=64, type=int, help='images input size')
 
     # * Finetuning params
     parser.add_argument('--global_pool', action='store_true')
@@ -42,7 +42,7 @@ def get_args_parser():
     # Dataset parameters
     parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/', type=str,
                         help='dataset path')
-    parser.add_argument('--nb_classes', default=200, type=int,
+    parser.add_argument('--nb_classes', default=100, type=int,
                         help='number of the classification types')
 
     parser.add_argument('--output_dir', default='./output_dir',
