@@ -8,7 +8,7 @@
 # timm: https://github.com/rwightman/pytorch-image-models/tree/master/timm
 # DeiT: https://github.com/facebookresearch/deit
 # --------------------------------------------------------
-
+import math
 from functools import partial
 
 import torch
@@ -76,7 +76,8 @@ class MaskedAutoencoderViT(nn.Module):
     def __init__(self, img_size=512, patch_size=16, in_chans=3,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, hard_lambda=0.0,
+                 num_tokens_lambda=0.0):
         super().__init__()
 
         # --------------------------------------------------------------------------
@@ -96,6 +97,11 @@ class MaskedAutoencoderViT(nn.Module):
         # --------------------------------------------------------------------------
         # MAE masking net specifics
         self.masking_net = MaskingNet(num_tokens=num_patches, embed_dim=embed_dim)
+        self.kl_loss = nn.KLDivLoss()
+        self.alpha = -1 / (0.12 * 0.12 * 2)
+        self.beta = 1 / (0.12 * math.sqrt(2 * math.pi))
+        self.hard_lambda = hard_lambda
+        self.num_tokens_lambda = num_tokens_lambda
         # --------------------------------------------------------------------------
 
         # --------------------------------------------------------------------------
@@ -295,7 +301,7 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         return loss
 
-    def forward_loss_mask(self, imgs, pred, mask, mask_ratio, ids_restore):
+    def forward_loss_mask(self, imgs, pred, masking_output, mask_ratio, ids_restore):
         """
         imgs: [N, 3, H, W]
         pred: [N, L, p*p*3]
@@ -313,14 +319,16 @@ class MaskedAutoencoderViT(nn.Module):
         N, L, D = loss.shape  # batch, length, dim
         len_keep = int(L * (1 - mask_ratio))
 
-        mask = torch.ones([N, L], device=mask.device)
+        mask = torch.ones([N, L], device=pred.device)
         mask[:, :len_keep] = 0
         mask = torch.gather(mask, dim=1, index=ids_restore)
 
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
-        return loss
+        loss_hard = self.hard_lambda * torch.exp(self.alpha*(masking_output - 0.5)**2) / self.beta
+        loss_num_tok = self.num_tokens_lambda * torch.abs((masking_output.mean(-1) - mask_ratio)).mean()
+        return loss + loss_hard + loss_num_tok
 
     def forward(self, imgs, mask_ratio=0.75, train_mask=False):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio, train_mask)

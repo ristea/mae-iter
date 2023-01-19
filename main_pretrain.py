@@ -45,6 +45,8 @@ def get_args_parser():
 
     # Masking V2 parameters
     parser.add_argument('--mask_ratio', default=0.75, type=float)
+    parser.add_argument('--hard_lambda', default=0.0, type=float)
+    parser.add_argument('--num_tokens_lambda', default=0.0, type=float)
 
     # Model parameters
     parser.add_argument('--model', default='mae_vit_base_patch16', type=str, metavar='MODEL',
@@ -152,7 +154,9 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size).float()
+    model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss, img_size=args.input_size,
+                                            hard_lambda=args.hard_lambda,
+                                            num_tokens_lambda=args.num_tokens_lambda).float()
     model.to(device)
 
     model_without_ddp = model
