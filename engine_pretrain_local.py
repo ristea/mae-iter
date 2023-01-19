@@ -20,7 +20,7 @@ import util.lr_sched as lr_sched
 
 def train_one_epoch(model: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, loss_scaler,
+                    device: torch.device, epoch: int, loss_scaler, loss_scaler_mask,
                     log_writer=None,
                     args=None):
     model.train(True)
@@ -45,7 +45,22 @@ def train_one_epoch(model: torch.nn.Module,
 
         samples = samples.to(device, non_blocking=True)
 
-        loss, _, _ = model(samples, mask_ratio=args.mask_ratio, mask_ratio_skip=args.mask_ratio_skip)
+        # Train mask stage
+        model.freeze_backbone()
+        loss, _, _ = model(samples, mask_ratio=args.mask_ratio, train_mask=True)
+        loss_value = loss.item()
+
+        if not math.isfinite(loss_value):
+            print("Loss is {}, stopping training".format(loss_value))
+            sys.exit(1)
+
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Train MAE stage
+        model.unfreeze_backbone()
+        loss, _, _ = model(samples, mask_ratio=args.mask_ratio, train_mask=False)
         loss_value = loss.item()
 
         if not math.isfinite(loss_value):
@@ -68,7 +83,6 @@ def train_one_epoch(model: torch.nn.Module,
             epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
             log_writer.add_scalar('train_loss', loss_value_reduce, epoch_1000x)
             log_writer.add_scalar('lr', lr, epoch_1000x)
-
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()

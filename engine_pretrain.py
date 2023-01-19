@@ -20,7 +20,7 @@ import util.lr_sched as lr_sched
 
 def train_one_epoch(model: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
-                    device: torch.device, epoch: int, loss_scaler,
+                    device: torch.device, epoch: int, loss_scaler, loss_scaler_mask,
                     log_writer=None,
                     args=None):
     model.train(True)
@@ -43,10 +43,31 @@ def train_one_epoch(model: torch.nn.Module,
         if data_iter_step % accum_iter == 0:
             lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
+        ###################  Train mask net
         samples = samples.to(device, non_blocking=True)
 
         with torch.cuda.amp.autocast():
-            loss, _, _ = model(samples, mask_ratio=args.mask_ratio, mask_ratio_skip=args.mask_ratio_skip)
+            loss, _, _ = model(samples, mask_ratio=args.mask_ratio, train_mask=True)
+
+        loss_value = loss.item()
+
+        if not math.isfinite(loss_value):
+            print("Loss MASK is {}, stopping training".format(loss_value))
+            sys.exit(1)
+
+        loss /= accum_iter
+        loss_scaler_mask(loss, optimizer, parameters=model.parameters(),
+                         update_grad=(data_iter_step + 1) % accum_iter == 0)
+        if (data_iter_step + 1) % accum_iter == 0:
+            optimizer.zero_grad()
+
+        torch.cuda.synchronize()
+
+        ###################  Train MAE
+        samples = samples.to(device, non_blocking=True)
+
+        with torch.cuda.amp.autocast():
+            loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
 
         loss_value = loss.item()
 

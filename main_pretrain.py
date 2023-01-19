@@ -32,8 +32,8 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 import models_mae as models_mae
 
-from engine_pretrain_local import train_one_epoch
-# from engine_pretrain import train_one_epoch
+# from engine_pretrain_local import train_one_epoch
+from engine_pretrain import train_one_epoch
 
 
 def get_args_parser():
@@ -47,7 +47,7 @@ def get_args_parser():
     parser.add_argument('--mask_ratio', default=0.75, type=float)
 
     # Model parameters
-    parser.add_argument('--model', default='mae_vit_base_patch8', type=str, metavar='MODEL',
+    parser.add_argument('--model', default='mae_vit_base_patch16', type=str, metavar='MODEL',
                         help='Name of model to train')
     parser.add_argument('--input_size', default=64, type=int, help='images input size')
     parser.add_argument('--norm_pix_loss', action='store_true',
@@ -177,9 +177,10 @@ def main(args):
     param_groups = optim_factory.add_weight_decay(model_without_ddp, args.weight_decay)
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
     print(optimizer)
-    loss_scaler = NativeScaler()
+    loss_scaler_mae = NativeScaler()
+    loss_scaler_mask = NativeScaler()
 
-    misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+    misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler_mae)
 
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
@@ -188,14 +189,14 @@ def main(args):
             data_loader_train.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, data_loader_train,
-            optimizer, device, epoch, loss_scaler,
+            optimizer, device, epoch, loss_scaler_mae, loss_scaler_mask,
             log_writer=log_writer,
             args=args
         )
         if args.output_dir and (epoch % args.save_ckpt_freq == 0 or epoch + 1 == args.epochs):
             misc.save_model(
                 args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
-                loss_scaler=loss_scaler, epoch=epoch)
+                loss_scaler=loss_scaler_mae, epoch=epoch)
 
         log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
                         'epoch': epoch,}
