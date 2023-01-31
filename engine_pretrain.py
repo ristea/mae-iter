@@ -44,6 +44,7 @@ def train_one_epoch(model: torch.nn.Module,
             lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         ###################  Train mask net
+        model.module.freeze_backbone()
         samples = samples.to(device, non_blocking=True)
 
         with torch.cuda.amp.autocast():
@@ -64,6 +65,7 @@ def train_one_epoch(model: torch.nn.Module,
         torch.cuda.synchronize()
 
         ###################  Train MAE
+        model.module.unfreeze_backbone()
         samples = samples.to(device, non_blocking=True)
 
         with torch.cuda.amp.autocast():

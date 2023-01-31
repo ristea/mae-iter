@@ -327,7 +327,7 @@ class MaskedAutoencoderViT(nn.Module):
 
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
         loss_hard = self.hard_lambda * torch.exp(self.alpha*(masking_output - 0.5)**2) / self.beta
-        loss_num_tok = self.num_tokens_lambda * torch.abs((masking_output.mean(-1) - mask_ratio)).mean()
+        loss_num_tok = self.num_tokens_lambda * torch.abs((masking_output.mean(-1) - (1 - mask_ratio))).mean()
         return loss + loss_hard + loss_num_tok
 
     def forward(self, imgs, mask_ratio=0.75, train_mask=False):
