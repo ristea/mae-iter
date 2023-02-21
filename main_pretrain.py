@@ -182,7 +182,6 @@ def main(args):
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
     print(optimizer)
     loss_scaler_mae = NativeScaler()
-    loss_scaler_mask = NativeScaler()
 
     misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler_mae)
 
@@ -193,7 +192,7 @@ def main(args):
             data_loader_train.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, data_loader_train,
-            optimizer, device, epoch, loss_scaler_mae, loss_scaler_mask,
+            optimizer, device, epoch, loss_scaler_mae,
             log_writer=log_writer,
             args=args
         )
